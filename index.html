@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smishing Detection System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-10">
+
+    <div class="max-w-3xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-200">
+        <div class="bg-blue-600 p-6 text-white text-center">
+            <h1 class="text-2xl font-bold">ระบบตรวจจับข้อความสมิชชิ่ง</h1>
+            <p class="text-blue-100 text-sm mt-1">Powered by WangchanBERTa AI</p>
+        </div>
+
+        <div class="p-8">
+            <div class="mb-8">
+                <label class="block text-gray-700 font-bold mb-3 text-lg">
+                    <span class="bg-blue-100 text-blue-600 px-2 py-1 rounded text-sm mr-2">1</span>
+                    วางข้อความ SMS ที่ต้องการตรวจสอบ
+                </label>
+                <textarea 
+                    id="smsInput"
+                    class="w-full h-40 p-4 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-gray-600"
+                    placeholder="ตัวอย่าง: คุณได้รับสิทธิ์กู้เงิน 50,000 บาท แอดไลน์ที่นี่..."></textarea>
+                
+                <button onclick="analyzeSMS()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+                    ตรวจสอบทันที (Check Now)
+                </button>
+            </div>
+
+            <hr class="my-8 border-dashed border-slate-300">
+
+            <div class="space-y-4">
+                <label class="block text-gray-700 font-bold mb-1 text-lg">
+                    <span class="bg-blue-100 text-blue-600 px-2 py-1 rounded text-sm mr-2">2</span>
+                    ผลลัพธ์การวิเคราะห์
+                </label>
+
+                <div id="resultCard" class="bg-slate-50 border-2 border-slate-200 p-5 rounded-2xl relative overflow-hidden transition-all duration-500">
+                    <div class="flex items-center space-x-4">
+                        <div id="iconBox" class="bg-slate-400 text-white p-3 rounded-full">
+                            <svg id="statusIcon" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 id="resultTitle" class="text-slate-700 font-bold text-xl">รอการตรวจสอบ...</h4>
+                            <p id="resultDesc" class="text-slate-500 text-sm">กรุณากรอกข้อความและกดปุ่มด้านบน</p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                            <span>ความมั่นใจของ AI (Confidence)</span>
+                            <span id="confidenceText">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full">
+                            <div id="confidenceBar" class="bg-slate-400 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-50 p-4 border-t border-slate-100 text-center text-[10px] text-slate-400 uppercase tracking-widest">
+            Classifier: WangchanBERTa | Framework: PyTorch & HuggingFace
+        </div>
+    </div>
+
+    <script>
+        async function analyzeSMS() {
+            const smsInput = document.getElementById('smsInput');
+            const message = smsInput.value.trim();
+            const btn = document.querySelector('button');
+
+            if (!message) {
+                alert("กรุณากรอกข้อความที่ต้องการตรวจสอบ");
+                return;
+            }
+
+            btn.innerText = "⏳ กำลังประมวลผล...";
+            btn.disabled = true;
+
+            try {
+                // เชื่อมต่อกับ Flask Backend ของคุณ
+                const response = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: message })
+                });
+
+                if (!response.ok) throw new Error('Backend error');
+
+                const data = await response.json();
+                displayResult(data);
+            } catch (error) {
+                console.error("Error:", error);
+                alert("❌ ไม่สามารถติดต่อเซิร์ฟเวอร์ AI ได้\n1. ตรวจสอบว่ารัน python app.py หรือยัง?\n2. ตรวจสอบเรื่อง CORS ใน Flask");
+            } finally {
+                btn.innerText = "ตรวจสอบทันที (Check Now)";
+                btn.disabled = false;
+            }
+        }
+
+        function displayResult(data) {
+            const resultCard = document.getElementById('resultCard');
+            const resultTitle = document.getElementById('resultTitle');
+            const resultDesc = document.getElementById('resultDesc');
+            const iconBox = document.getElementById('iconBox');
+            const confidenceText = document.getElementById('confidenceText');
+            const confidenceBar = document.getElementById('confidenceBar');
+
+            // อัปเดตความมั่นใจ
+            confidenceText.innerText = data.confidence + "%";
+            confidenceBar.style.width = data.confidence + "%";
+
+            if (data.is_scam) {
+                // กรณีเป็นภัยคุกคาม
+                resultCard.className = "bg-red-50 border-2 border-red-200 p-5 rounded-2xl relative overflow-hidden transition-all duration-500";
+                iconBox.className = "bg-red-500 text-white p-3 rounded-full";
+                resultTitle.innerText = "ตรวจพบความเสี่ยง! (Smishing)";
+                resultTitle.className = "text-red-700 font-bold text-xl";
+                resultDesc.innerText = "ข้อความนี้มีลักษณะหลอกลวงหรือมีลิงก์ที่เป็นอันตราย";
+                confidenceBar.className = "bg-red-600 h-2 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.5)]";
+            } else {
+                // กรณีปลอดภัย
+                resultCard.className = "bg-green-50 border-2 border-green-200 p-5 rounded-2xl relative overflow-hidden transition-all duration-500";
+                iconBox.className = "bg-green-500 text-white p-3 rounded-full";
+                resultTitle.innerText = "ข้อความนี้ปลอดภัย (Normal)";
+                resultTitle.className = "text-green-700 font-bold text-xl";
+                resultDesc.innerText = "ไม่พบความผิดปกติในลักษณะของข้อความหลอกลวง";
+                confidenceBar.className = "bg-green-600 h-2 rounded-full shadow-[0_0_10px_rgba(22,163,74,0.5)]";
+            }
+        }
+    </script>
+</body>
+</html>
